@@ -68,7 +68,19 @@ export class MemoryRepository implements IBulkAsset {
             .whereRef('memory_asset.memoriesId', '=', 'memory.id')
             .orderBy('asset.fileCreatedAt', 'asc')
             .where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
-            .where('asset.deletedAt', 'is', null),
+            .where('asset.deletedAt', 'is', null)
+            .where((eb) =>
+              eb.not(
+                eb.exists(
+                  eb
+                    .selectFrom('asset_face')
+                    .innerJoin('person', 'asset_face.personId', 'person.id')
+                    .whereRef('asset_face.assetId', '=', 'asset.id')
+                    .where('asset_face.deletedAt', 'is', null)
+                    .where('person.isHidden', '=', true),
+                ),
+              ),
+            ),
         ).as('assets'),
       )
       .selectAll('memory')
@@ -159,7 +171,19 @@ export class MemoryRepository implements IBulkAsset {
             .whereRef('memory_asset.memoriesId', '=', 'memory.id')
             .orderBy('asset.fileCreatedAt', 'asc')
             .where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
-            .where('asset.deletedAt', 'is', null),
+            .where('asset.deletedAt', 'is', null)
+            .where((eb) =>
+              eb.not(
+                eb.exists(
+                  eb
+                    .selectFrom('asset_face')
+                    .innerJoin('person', 'asset_face.personId', 'person.id')
+                    .whereRef('asset_face.assetId', '=', 'asset.id')
+                    .where('asset_face.deletedAt', 'is', null)
+                    .where('person.isHidden', '=', true),
+                ),
+              ),
+            ),
         ).as('assets'),
       )
       .where('id', '=', id)

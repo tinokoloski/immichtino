@@ -286,6 +286,18 @@ export class AssetRepository {
                 .where('asset.ownerId', '=', anyUuid(ownerIds))
                 .where('asset.visibility', '=', AssetVisibility.Timeline)
                 .where((eb) =>
+                  eb.not(
+                    eb.exists(
+                      eb
+                        .selectFrom('asset_face')
+                        .innerJoin('person', 'asset_face.personId', 'person.id')
+                        .whereRef('asset_face.assetId', '=', 'asset.id')
+                        .where('asset_face.deletedAt', 'is', null)
+                        .where('person.isHidden', '=', true),
+                    ),
+                  ),
+                )
+                .where((eb) =>
                   eb.exists((qb) =>
                     qb
                       .selectFrom('asset_file')

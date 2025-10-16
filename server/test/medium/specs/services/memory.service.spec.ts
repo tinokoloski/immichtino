@@ -105,6 +105,28 @@ describe(MemoryService.name, () => {
         }),
       );
     });
+
+    it('should omit assets containing hidden people from the response', async () => {
+      const { sut, ctx } = setup();
+      const { user } = await ctx.newUser();
+      const { asset } = await ctx.newAsset({ ownerId: user.id });
+      const { person } = await ctx.newPerson({ ownerId: user.id, isHidden: true });
+      await ctx.newAssetFace({ assetId: asset.id, personId: person.id });
+      const auth = factory.auth({ user });
+      const dto = {
+        type: MemoryType.OnThisDay,
+        data: { year: 2021 },
+        memoryAt: new Date(2021),
+        assetIds: [asset.id],
+      };
+
+      await expect(sut.create(auth, dto)).resolves.toEqual(
+        expect.objectContaining({
+          id: expect.any(String),
+          assets: [],
+        }),
+      );
+    });
   });
 
   describe('onMemoryCreate', () => {
@@ -194,6 +216,31 @@ describe(MemoryService.name, () => {
 
       const memoriesAfter = await memoryRepo.search(user.id, {});
       expect(memoriesAfter.length).toBe(1);
+    });
+
+    it('should skip assets that include hidden people when generating memories', async () => {
+      const { sut, ctx } = setup();
+      const assetRepo = ctx.get(AssetRepository);
+      const memoryRepo = ctx.get(MemoryRepository);
+      const now = DateTime.fromObject({ year: 2025, month: 2, day: 25 }, { zone: 'utc' }) as DateTime<true>;
+      const { user } = await ctx.newUser();
+      const { asset } = await ctx.newAsset({ ownerId: user.id, localDateTime: now.minus({ years: 1 }).toISO() });
+      const { person } = await ctx.newPerson({ ownerId: user.id, isHidden: true });
+      await ctx.newAssetFace({ assetId: asset.id, personId: person.id });
+      await Promise.all([
+        ctx.newExif({ assetId: asset.id, make: 'Canon' }),
+        ctx.newJobStatus({ assetId: asset.id }),
+        assetRepo.upsertFiles([
+          { assetId: asset.id, type: AssetFileType.Preview, path: '/path/to/preview.jpg' },
+          { assetId: asset.id, type: AssetFileType.Thumbnail, path: '/path/to/thumbnail.jpg' },
+        ]),
+      ]);
+
+      vi.setSystemTime(now.toJSDate());
+      await sut.onMemoriesCreate();
+
+      const memories = await memoryRepo.search(user.id, {});
+      expect(memories.length).toBe(0);
     });
   });
 
